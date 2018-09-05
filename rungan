@@ -1,0 +1,5 @@
+#!/bin/bash 
+module load tacc-singularity
+mycode=cogan_sgsim_SR.py
+singularity exec --nv /work/02248/alexsund/singularity_cache/tacc-maverick-ml2-latest.simg python -W ignore $mycode  
+
