@@ -1,10 +1,9 @@
-#alexsun
-#date: 06242018
+#Author: Alex Sun
+#Initial creation date: June 24, 2018
 #Modified after the Keras discogan implementation from
 #https://raw.githubusercontent.com/eriklindernoren/Keras-GAN/master/discogan/discogan.py
 #This is used to generate Figures 1, 2 of the GRL paper
-#rev: 07042018
-#this is trained on TACC Maverick, $WORK/cogan/config1_a
+#Rev Date: 09/10/2018, added comments
 #=========================================================================================
 from __future__ import print_function, division
 
@@ -13,10 +12,11 @@ import random as rn
 import tensorflow as tf
 from numpy.random import seed
 
+#fix seeds for reproducibility
 seed(1111)
 rn.seed(1989)
 tf.set_random_seed(1989)
-#why do I need this?
+
 session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
 sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
 
@@ -184,7 +184,9 @@ class SPIDGAN():
 
         img = Input(shape=self.img_shape)
         #switch for super-resolution
-        SR = False
+        #True, add extra layers for super resolution 
+        #False, the original discogan
+        SR = True
         if SR:
             d1 = d_layer(img, self.df, normalization=False)
             d1 = d_layer(d1, self.df, stride_size=2)
@@ -211,6 +213,9 @@ class SPIDGAN():
         return dd
 
     def mytrain(self, epochs, batch_size=20, sample_interval=50, reTrain=True):
+        '''
+        Driver for training the gan
+        '''
         def getBatch():
             X1, X2 = self.loadData(task='train')
             n_batches = int(X1.shape[0] / batch_size)
@@ -266,6 +271,7 @@ class SPIDGAN():
                         # If at save interval => save generated image samples
                         if batch_i % sample_interval == 0:
                             self.sample_images(epoch, batch_i)
+            #save trained gan models
             self.g_AB.save_weights('gan_ab.h5')
             self.g_BA.save_weights('gan_ba.h5')
         else:
@@ -283,7 +289,7 @@ class SPIDGAN():
         XMAX = 1.0
 
         if self.heads is None:
-            #only do this once
+            #only do this once, facies = hydraulic conductivity in this example
             heads, facies = np.load('allsghead.npy')
             self.heads=heads
             #this is permeability
@@ -298,12 +304,10 @@ class SPIDGAN():
         else:
             heads = self.heads
             facies = self.facies
-        
+        #This controls the number of training samples to be used 
         nTrain = 400
         nTest = facies.shape[1] - nTrain
         print ('number of realizations', facies.shape[1])
-        #number of columns = number of realizations
-        #number of rows = number of cells
                 
         heads = np.transpose(heads)
         facies= np.transpose(facies)    
@@ -325,13 +329,17 @@ class SPIDGAN():
             for i in range(nTest):
                 X1[i,:,:,0] = np.reshape(facies[nTrain+i,:], (N,N))
                 X2[i,:,:,0] = np.reshape(heads[nTrain+i,:], (N, N))
-            #randomly select a number from 0 to nTest
+            
+            #randomly select a number from 0 to nTest for testing
             if idx is None:
                 idx = np.random.randint(0, nTest, 1)
 
             return X1[idx], X2[idx]
 
     def sample_images(self, epoch, batch_i, idx=None):
+        '''
+        print out intermediate images for training 
+        '''
         def rescale(img, stype):
             if idx is None:
                 return img
@@ -367,7 +375,6 @@ class SPIDGAN():
             reconstr_A = rescale(reconstr_A, 'k')
             reconstr_B = rescale(reconstr_B, 'h')
         
-        #gen_imgs = np.concatenate([imgs_A, fake_B, reconstr_A, imgs_B, fake_A, reconstr_B])
         gen_imgs = np.concatenate([imgs_A, fake_B, imgs_B, fake_A])
         print (gen_imgs.shape)
         titles = ['Original logK', 'Generated h', 'Original h', 'Generated logK']
@@ -411,7 +418,7 @@ class SPIDGAN():
 
 
     def calculateStats(self, reRun=False):
-        #realizations used for testing
+        #defines the realizations used for testing
         nrz = 1000
         
         if reRun:
@@ -479,7 +486,7 @@ class SPIDGAN():
 if __name__ == '__main__':
     gan = SPIDGAN(imshape=(N,N))
     gan.mytrain(epochs=125, batch_size=10, sample_interval=25, reTrain=False)
-    #this is used to generate Figure2a, use #5
+    #This is used to generate Figure2a, use #5
     gan.drawTest()
-    #this is used to generate Figure2b, reRun=True, rerun MC, False, using existing results
+    #This is used to generate Figure2b, reRun=True, rerun MC, False, using existing results
     gan.calculateStats(reRun=False)
